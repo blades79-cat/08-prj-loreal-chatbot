@@ -1,60 +1,123 @@
-// ✅ DOM elements
-const chatForm = document.getElementById("chatForm");
-const userInput = document.getElementById("userInput");
-const chatWindow = document.getElementById("chatWindow");
+/******************************
+ * SET YOUR WORKER URL HERE   *
+ ******************************/
+const WORKER_URL = "https://YOUR-WORKER.subdomain.workers.dev"; // If yours is already correct, leave it.
 
-// ✅ Cloudflare Worker URL (yours)
-const WORKER_URL = "https://silent-brook-0fad.blades79.workers.dev";
+/* ====== DOM helpers ====== */
+const qs = s => document.querySelector(s);
+const chat = qs('#chat-window');
+const form = qs('#chat-form');
+const input = qs('#user-input');
+const qPreview = qs('#question-preview');
+const qText = qs('#q-text');
+const tpl = document.querySelector('#msg-template');
 
-// ✅ Initial welcome message
-chatWindow.innerHTML = `<div class="bot-message">👋 Hello! How can I help you today?</div>`;
+const history = []; // will store {role, content}
 
-// ✅ System prompt for L'Oréal beauty bot
+/* ====== UI utils ====== */
+function bubble(text, who = 'bot'){
+  const node = tpl.content.firstElementChild.cloneNode(true);
+  node.classList.add(who);
+  node.querySelector('.bubble').textContent = text;
+  chat.appendChild(node);
+  chat.scrollTop = chat.scrollHeight;
+  return node;
+}
+function typingBubble(){
+  const node = tpl.content.firstElementChild.cloneNode(true);
+  node.classList.add('bot');
+  const b = node.querySelector('.bubble');
+  b.innerHTML = `<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>`;
+  chat.appendChild(node);
+  chat.scrollTop = chat.scrollHeight;
+  return node;
+}
+function setLatestQuestionPreview(text){
+  if (!text || !text.trim()){ qPreview.hidden = true; qText.textContent = ''; return; }
+  qText.textContent = text.trim();
+  qPreview.hidden = false;
+}
+
+/* ====== System prompt (beauty-only) ====== */
 const systemPrompt = `
-You are the official L’Oréal Beauty Assistant.
-Only answer questions about skincare, makeup, haircare, fragrances,
-beauty routines, L’Oréal brands, and product recommendations.
-If asked anything else, politely say:
-"I'm here to help with beauty — ask me about products, routines, or recommendations!"
+You are L'Oréal Beauty AI.
+ONLY answer questions about beauty (skincare, makeup, haircare, fragrance), routines, ingredients, and L'Oréal products.
+If the user asks about anything unrelated, reply exactly:
+"Sorry! I can only help with beauty and L’Oréal product questions 💄✨"
+Keep answers helpful, brand-appropriate, and concise, but include why you recommend products (skin type/concern/finish/key actives).
 `;
 
-// ✅ Handle message send
-chatForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+/* ====== Initial greeting ====== */
+bubble("Hi! I’m L’Oréal Beauty AI. Ask me about skincare, makeup, haircare, or fragrance. I can build routines, compare products, and explain ingredients. Off-topic questions will be declined politely ✨", 'bot');
 
-  const text = userInput.value.trim();
+/* ====== Suggestion pills ====== */
+document.querySelectorAll('.pill').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    input.value = btn.dataset.suggest;
+    input.focus();
+  });
+});
+
+/* ====== Core: ask model through your Worker ====== */
+async function askModel(userText){
+  // maintain memory
+  if (history.length === 0){
+    history.push({ role: 'system', content: systemPrompt });
+  }
+  history.push({ role: 'user', content: userText });
+
+  // Build the OpenAI payload here (Worker forwards it to OpenAI)
+  const payload = {
+    model: "gpt-4o-mini",
+    messages: history,
+    temperature: 0.6
+  };
+
+  const res = await fetch(WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok){
+    const t = await res.text().catch(()=> "");
+    throw new Error(`Network/Worker error ${res.status}: ${t || res.statusText}`);
+  }
+  const data = await res.json();
+  // Worker returns the full OpenAI response (choices[0].message.content)
+  const reply = data?.choices?.[0]?.message?.content ?? "Sorry—no reply received.";
+  history.push({ role: 'assistant', content: reply });
+  return reply;
+}
+
+/* ====== Form handling ====== */
+form.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const text = input.value.trim();
   if (!text) return;
 
-  // Show user's message
-  chatWindow.innerHTML += `<div class="user-message">${text}</div>`;
-  userInput.value = "";
+  // user bubble + latest question
+  bubble(text, 'user');
+  setLatestQuestionPreview(text);
+  input.value = '';
 
-  // Show typing placeholder
-  chatWindow.innerHTML += `<div class="bot-message" id="typing">💬 Thinking...</div>`;
-  chatWindow.scrollTop = chatWindow.scrollHeight;
+  // typing
+  const typing = typingBubble();
+  try{
+    const reply = await askModel(text);
+    typing.remove();
+    bubble(reply, 'bot');
+  }catch(err){
+    typing.remove();
+    bubble("⚠️ Error: Couldn’t reach the AI service. Check your Worker URL and that your Worker replies with the OpenAI JSON.", 'bot');
+    console.error(err);
+  }
+});
 
-  try {
-    // ✅ Send request to Cloudflare Worker
-    const res = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system: systemPrompt,
-        user: text
-      })
-    });
-
-    const data = await res.json();
-
-    // Remove typing placeholder
-    document.getElementById("typing").remove();
-
-    // Show AI response
-    chatWindow.innerHTML += `<div class="bot-message">${data.response}</div>`;
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-
-  } catch (err) {
-    document.getElementById("typing").remove();
-    chatWindow.innerHTML += `<div class="bot-message">⚠️ Error: Could not reach AI service.</div>`;
+/* Allow Enter to send */
+input.addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    form.requestSubmit();
   }
 });

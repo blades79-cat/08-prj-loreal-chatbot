@@ -1,66 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chat Assistant</title>
-    <link
-      href="https://fonts.googleapis.com/icon?family=Material+Icons"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="style.css" />
-  </head>
-
-  <body>
-    <div class="page-wrapper">
-      <!------- Header / Branding ------->
-      <header class="site-header">
-        <h1 class="site-title">Smart Product Advisor</h1>
-      </header>
-
-      <!------- Chat Area ------->
-      <main>
-        <section class="chatbox">
-          <div id="chatWindow" class="chat-window">
-            <!-- messages will be appended here via JS -->
-          </div>
-
-          <form id="chatForm" class="chat-form">
-            <label for="userInput" class="visually-hidden">Message</label>
-            <input
-              id="userInput"
-              name="userInput"
-              type="text"
-              placeholder="Ask me about products or routines…"
-              autocomplete="off"
-              required
-            />
-            <button type="submit" id="sendBtn">
-              <span class="material-icons">send</span>
-              <span class="visually-hidden">Send</span>
-            </button>
-          </form>
-        </section>
-      </main>
-
-      <!------- Footer Links ------->
-      <footer class="site-footer">
-        <p>&copy; 2025 Company Name. All rights reserved.</p>
-        <nav>
-          <!-- These URLs are placeholders -->
-          <a href="#">Privacy Policy</a>
-          <a href="#">Terms of Use</a>
-          <a href="#">Contact</a>
-        </nav>
-      </footer>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>L’Oréal Beauty AI</title>
+  <link rel="stylesheet" href="style.css" />
+  <meta name="theme-color" content="#000000" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <!-- If loreal-logo.png exists (you have it), it will show. Otherwise the wordmark still looks good. -->
+      <img src="loreal-logo.png" alt="L’Oréal" class="brand-logo" onerror="this.style.display='none'" />
+      <h1 class="brand-wordmark">L’Oréal Beauty AI</h1>
     </div>
+    <p class="brand-tagline">Personalized routines & product guidance</p>
+  </header>
 
-    <!-- secrets.js can be removed when using Cloudflare Workers for API requests -->
-    <script src="secrets.js"></script>
-    <script src="script.js"></script>
-  </body>
+  <main class="chat-shell">
+    <section id="chat-window" class="chat-window" aria-live="polite"></section>
+
+    <form id="chat-form" class="chat-input-row" autocomplete="off">
+      <div class="pills">
+        <button type="button" class="pill" data-suggest="Build me a morning routine for dry, sensitive skin.">Dry skin routine</button>
+        <button type="button" class="pill" data-suggest="What primer pairs with a dewy foundation?">Primer tips</button>
+        <button type="button" class="pill" data-suggest="Recommend a sulfate-free shampoo for color-treated hair.">Color-safe shampoo</button>
+      </div>
+
+      <div id="question-preview" class="question-preview" hidden>
+        <span class="q-label">Your question:</span>
+        <span id="q-text" class="q-text"></span>
+      </div>
+
+      <div class="input-wrap">
+        <input id="user-input" type="text" placeholder="Ask about skincare, makeup, haircare or fragrance…" aria-label="Type your beauty question" required />
+        <button id="send-btn" class="send-btn" type="submit" aria-label="Send message">Send</button>
+      </div>
+    </form>
+  </main>
+
+  <footer class="site-footer">
+    <small>Answers are limited to beauty topics and L’Oréal products. Off-topic questions are politely declined.</small>
+  </footer>
+
+  <template id="msg-template">
+    <article class="msg">
+      <div class="bubble"></div>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
 </html>
