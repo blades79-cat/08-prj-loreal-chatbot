@@ -1,7 +1,7 @@
 /******************************
- * SET YOUR WORKER URL HERE   *
+ * WORKER URL (YOURS ✅)
  ******************************/
-const WORKER_URL = "https://YOUR-WORKER.subdomain.workers.dev"; // If yours is already correct, leave it.
+const WORKER_URL = "https://silent-brook-fad.blades79.workers.dev";
 
 /* ====== DOM helpers ====== */
 const qs = s => document.querySelector(s);
@@ -48,7 +48,7 @@ Keep answers helpful, brand-appropriate, and concise, but include why you recomm
 `;
 
 /* ====== Initial greeting ====== */
-bubble("Hi! I’m L’Oréal Beauty AI. Ask me about skincare, makeup, haircare, or fragrance. I can build routines, compare products, and explain ingredients. Off-topic questions will be declined politely ✨", 'bot');
+bubble("Hi! I’m L’Oréal Beauty AI 👋 Ask me about skincare, makeup, haircare, or fragrance. I can build routines, compare products, and explain ingredients. Off-topic questions will be declined politely ✨", 'bot');
 
 /* ====== Suggestion pills ====== */
 document.querySelectorAll('.pill').forEach(btn=>{
@@ -58,15 +58,14 @@ document.querySelectorAll('.pill').forEach(btn=>{
   });
 });
 
-/* ====== Core: ask model through your Worker ====== */
+/* ====== Core: call your Worker with full OpenAI payload ====== */
 async function askModel(userText){
-  // maintain memory
+  // Add messages to history
   if (history.length === 0){
     history.push({ role: 'system', content: systemPrompt });
   }
   history.push({ role: 'user', content: userText });
 
-  // Build the OpenAI payload here (Worker forwards it to OpenAI)
   const payload = {
     model: "gpt-4o-mini",
     messages: history,
@@ -83,8 +82,8 @@ async function askModel(userText){
     const t = await res.text().catch(()=> "");
     throw new Error(`Network/Worker error ${res.status}: ${t || res.statusText}`);
   }
+
   const data = await res.json();
-  // Worker returns the full OpenAI response (choices[0].message.content)
   const reply = data?.choices?.[0]?.message?.content ?? "Sorry—no reply received.";
   history.push({ role: 'assistant', content: reply });
   return reply;
@@ -96,12 +95,10 @@ form.addEventListener('submit', async (e)=>{
   const text = input.value.trim();
   if (!text) return;
 
-  // user bubble + latest question
   bubble(text, 'user');
   setLatestQuestionPreview(text);
   input.value = '';
 
-  // typing
   const typing = typingBubble();
   try{
     const reply = await askModel(text);
@@ -109,12 +106,12 @@ form.addEventListener('submit', async (e)=>{
     bubble(reply, 'bot');
   }catch(err){
     typing.remove();
-    bubble("⚠️ Error: Couldn’t reach the AI service. Check your Worker URL and that your Worker replies with the OpenAI JSON.", 'bot');
+    bubble("⚠️ Error: Couldn’t reach the AI service. Check your Worker URL is correct & deployed.", 'bot');
     console.error(err);
   }
 });
 
-/* Allow Enter to send */
+/* Enter to send */
 input.addEventListener('keydown', (e)=>{
   if (e.key === 'Enter' && !e.shiftKey){
     e.preventDefault();
