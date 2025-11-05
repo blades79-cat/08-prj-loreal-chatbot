@@ -1,5 +1,5 @@
 /******************************
- ✅ CORRECT CLOUDLFRARE WORKER URL (DO NOT CHANGE)
+ ✅ CORRECT CLOUDFLARE WORKER URL (do not edit)
 ******************************/
 const WORKER_URL = "https://silent-brook-0fad.blades79.workers.dev";
 
@@ -13,7 +13,7 @@ const qPreview = document.querySelector('#question-preview');
 const qText = document.querySelector('#q-text');
 const tpl = document.querySelector('#msg-template');
 
-const history = []; // chat memory
+const history = []; // conversation memory: [{role, content}]
 
 /******************************
  UI HELPERS
@@ -24,83 +24,91 @@ function bubble(text, who = 'bot') {
   node.querySelector('.bubble').textContent = text;
   chat.appendChild(node);
   chat.scrollTop = chat.scrollHeight;
+  return node;
 }
 
 function typingBubble() {
   const node = tpl.content.firstElementChild.cloneNode(true);
   node.classList.add('bot');
-  const b = node.querySelector('.bubble');
-  b.innerHTML = `<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>`;
+  node.querySelector('.bubble').innerHTML =
+    `<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>`;
   chat.appendChild(node);
   chat.scrollTop = chat.scrollHeight;
   return node;
 }
 
 function setLatestQuestionPreview(text) {
-  if (!text || !text.trim()) { 
-    qPreview.hidden = true; 
-    qText.textContent = ""; 
-    return; 
-  }
-  qText.textContent = text.trim();
+  const t = (text || "").trim();
+  if (!t) { qPreview.hidden = true; qText.textContent = ""; return; }
+  qText.textContent = t;
   qPreview.hidden = false;
 }
 
 /******************************
- BEAUTY-ONLY SYSTEM PROMPT
+ STRICT BEAUTY-ONLY SYSTEM PROMPT
 ******************************/
 const systemPrompt = `
 You are L’Oréal Beauty AI.
 ONLY answer questions about skincare, makeup, haircare, fragrance, beauty routines, ingredients, and L’Oréal products.
-If user asks anything unrelated, reply:
+If the user asks anything unrelated, reply exactly:
 "Sorry! I can only help with beauty and L’Oréal product questions 💄✨"
-Be helpful, brand-friendly, and explain WHY you recommend products (skin type/concern, key ingredients).
+Be concise, brand-appropriate, and explain WHY for recommendations (skin type/concern, finish, key actives).
 `;
 
 /******************************
- INITIAL WELCOME MESSAGE
+ INITIAL MESSAGE
 ******************************/
-bubble("Hi! I’m L’Oréal Beauty AI 👋 Ask me about skincare, makeup, haircare, or fragrance. I can build routines, compare products, and explain ingredients. Off-topic questions will be politely declined ✨", "bot");
+bubble(
+  "Hi! I’m L’Oréal Beauty AI 👋 Ask me about skincare, makeup, haircare, or fragrance. I can build routines, compare products, and explain ingredients. Off-topic questions will be declined politely ✨",
+  "bot"
+);
 
 /******************************
- SUGGESTION BUTTONS
+ QUICK SUGGESTION PILLS
 ******************************/
 document.querySelectorAll('.pill').forEach(btn => {
   btn.addEventListener('click', () => {
-    input.value = btn.dataset.suggest;
+    input.value = btn.dataset.suggest || "";
     input.focus();
   });
 });
 
 /******************************
- CALL CLOUDFLARE WORKER
+ CALL YOUR WORKER (forwards to OpenAI)
 ******************************/
-async function askModel(text) {
+async function askModel(userText) {
+  // ensure system prompt goes first once
   if (history.length === 0) {
     history.push({ role: "system", content: systemPrompt });
   }
-  history.push({ role: "user", content: text });
+  history.push({ role: "user", content: userText });
+
+  const payload = {
+    model: "gpt-4o-mini",
+    messages: history,
+    temperature: 0.6
+  };
 
   const res = await fetch(WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: history,
-      temperature: 0.6
-    })
+    body: JSON.stringify(payload)
   });
 
+  // If the worker failed, throw so UI shows friendly error bubble
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Worker ${res.status}: ${text || res.statusText}`);
+  }
+
   const data = await res.json();
-
-  const reply = data?.choices?.[0]?.message?.content ?? "⚠️ AI returned no response";
+  const reply = data?.choices?.[0]?.message?.content ?? "Sorry—no reply received.";
   history.push({ role: "assistant", content: reply });
-
   return reply;
 }
 
 /******************************
- HANDLE FORM SUBMIT
+ FORM SUBMIT
 ******************************/
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -112,20 +120,19 @@ form.addEventListener("submit", async (e) => {
   input.value = "";
 
   const typing = typingBubble();
-
   try {
     const reply = await askModel(text);
     typing.remove();
     bubble(reply, "bot");
   } catch (err) {
     typing.remove();
-    bubble("⚠️ Error connecting to AI. Please try again.", "bot");
+    bubble("⚠️ Error: Couldn’t reach the AI service. Please refresh and try again.", "bot");
     console.error(err);
   }
 });
 
 /******************************
- ENTER TO SEND
+ ENTER-TO-SEND
 ******************************/
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
